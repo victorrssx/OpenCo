@@ -1,0 +1,115 @@
+
+/* ----- Título Principal e Banner ---- */
+
+.quarto-title-block .title {
+  font-size: 50px;
+  color: #2dcc4d;
+  font-family: Georgia;
+  text-shadow: none;
+}
+
+.quarto-title-block .quarto-title-banner {
+  background-image: url(openco-logo.png);
+  background-size: 400px;
+  background-position: right;
+  background-repeat: no-repeat;
+  padding-right: 100px;
+  padding-top: 100px !important;
+  background-origin: content-box;
+}
+
+
+/* ----- Cabeçalho do Título Principal (Autor, Data de Publicação, etc) ---- */
+
+#title-block-header.quarto-title-block.default .quarto-title-meta-heading {
+    text-transform: none;
+}
+
+#title-block-header.quarto-title-block.default .quarto-title-meta {
+  grid-template-columns: 150px 150px;
+} 
+
+
+/* ----- Títulos ---- */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: Arial;
+  opacity: 1;
+}
+
+
+/* ----- Body ---- */
+
+body {
+  text-align: justify !important;
+  background-color: #046c3c;
+}
+
+
+/* ----- Texto ---- */
+
+p, element.style {
+    font-family: Montserrat;
+}
+
+
+/* ----- Abas ---- */
+
+.nav-pills .nav-link.active {
+    color: darkgreen;
+    background-color: lightgreen;
+    border: none;
+}
+
+.nav-pills .nav-link {
+    color: lightgreen;
+}
+
+.tab-content {
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  padding: 0.5em;
+  /* border-color: #069D57;
+  background-color: #069D57; */
+}
+
+#tabset-2-1 {
+  background-color: blue;
+}
+
+.nav-tabs {
+  border-bottom: none;
+  /* border-color: #069D57; */
+}
+
+
+/* ----- Callouts ---- */
+
+.callout.callout-style-default .callout-body {
+  background-color: #046c3c;
+}
+
+div.callout-important.callout-style-default>.callout-header {
+    background-color: lightgreen;
+    color: darkgreen;
+    font-family: Montserrat;
+}
+
+div.callout-important.callout {
+    border-color: lightgreen
+}
+
+
+/* ----- Texto do Grid ---- */
+
+.grid, element.style {
+  font-family: Montserrat;
+}
+
+
+/* ----- Caption das Figuras ---- */
+
+figure>figcaption.quarto-float-caption-bottom {
+    display: none;
+}
