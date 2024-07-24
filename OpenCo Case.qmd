@@ -1,0 +1,456 @@
+---
+title: "OpenCo Case"
+author: "Victor Líbera"
+date: last-modified
+lang: pt-br
+
+title-block-banner: "#046c3c"
+
+format:
+  html:
+    toc: false
+    html-math-method: katex
+    css: styles.css
+    
+    fontcolor: white
+    
+    anchor-sections: false
+    smooth-scroll: true
+    fig-caption: no
+    
+    grid:
+      sidebar-width: 0px
+      body-width: 1500px
+      margin-width: 0px
+      gutter-width: 3.5rem
+
+engine: knitr
+# server: shiny
+
+execute: 
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+source('E:/OpenCo/OpenCo.R')
+```
+
+Apresentação elaborada com Quarto (e CSS), via R (mas disponível também em Python, com mesma lógica e sintaxe). Em sua maioria, as figuras são interativas, de modo que ao passar o cursor por uma observação é possível acessar mais informações da mesma.
+
+## Características Gerais
+
+Inicialmente, a base de dados de empréstimos possuía 1.938 observações e 14 variáveis. No entanto, 16 registros estavam sem informação e, portanto, foram removidos. Em relação as 1.922 observações restantes, é interessante realizar uma análise exploratória inicial, com intuito entender as principais características da amostra.
+
+::: grid
+::: g-col-6
+-   Quantos empréstimos foram realizadas por *Unidade Federativa?* Quais os principais representantes no portfólio?
+
+    Ao realizar o recorte por Unidade Federativa, vemos que cerca de 51,9% das operações estão concentradas nos estados de **São Paulo** (36,8%), com destaque, **Rio de Janeiro** (7,6%) e **Minas Gerais** (7,5%). Ao todo, oito Unidades Federativas (de vinte e sete) representam aproximadamente 75% do número total de emprésitmos, majoritariamente distribuídos nas regiões Sul e Sudeste do país.\
+:::
+
+::: g-col-6
+::: {.panel-tabset .nav-pills}
+## Acumulado
+
+```{r}
+#| label: fig-ufacum
+#| fig-width: 7.5
+
+eda(dados, "estado", plot = F) %>% 
+  {ggplot(., aes(x = reorder(feature_name, -n), y = cum_percent, group = 1)) +
+   geom_vline(xintercept = "MG", color = "pink", linetype = "dashed") +
+   geom_vline(xintercept = "SC", color = "pink", linetype = "dashed") +
+   geom_line(size = .75, colour = "orange") +
+   geom_point_interactive(aes(tooltip = tooltip, data_id = feature_name), color = "orange", size = 3.5) +
+   scale_y_continuous(limits = c(0,100), breaks = seq(25, 100, 25)) +
+   labs(title = "Figura 1. Percentual Acumulado de Operações por UF", x = NULL, y = NULL) +
+   tema +
+   theme(axis.text.x = element_text(angle = 90),
+         panel.grid.major.y = element_blank())} %>% 
+girafe(ggobj = .)
+```
+
+## Mapa
+
+```{r}
+#| label: fig-ufmapa
+#| fig-width: 7
+
+  eda(dados, "estado", plot = F) %>%
+    left_join(read_state(showProgress = F) %>% select(feature_name = abbrev_state), by = "feature_name") %>% 
+    {ggplot(., aes(geometry = geom)) +
+     geom_sf_interactive(data = ., 
+                         aes(tooltip = tooltip2, 
+                             data_id = feature_name), fill = ifelse(.$rank8 == 1, "pink", "grey70"), color = "black", linewidth = 0.25) +
+     coord_sf(xlim = c(-88.1, -18), ylim = c(7.6, -37.55)) +
+     labs(title = "Figura 2. Concentração de ~75% das Operações") +
+     tema +
+     theme(axis.line = element_blank(),  
+           axis.text.x = element_blank(),
+           axis.text.y = element_blank())} %>% 
+    girafe(ggobj = .)
+
+```
+:::
+:::
+:::
+
+::: grid
+::: g-col-6
+-   Análise semelhante pode ser feita através do recorte de *setor econômico*. Nesse caso, **Varejo** (37,1%), **Serviços de Alojamento/Alimentação** (9,2%) e **Serviços Administrativos** (7,5%) representam cerca de 53,8% da amostra. Em torno de 75% das observações estão condensadas em apenas sete setores econômicos, dentre os vinte e cinco presentes.  
+:::
+
+::: g-col-6
+```{r}
+#| label: fig-setoracum
+#| fig-width: 7.5
+
+eda(dados, "setor", plot = F) %>% 
+  {ggplot(., aes(x = reorder(abbreviate(feature_name), -n), y = cum_percent, group = 1)) +
+   geom_vline(xintercept = "SrçA", color = "pink", linetype = "dashed") +
+   geom_vline(xintercept = "BnsdCn", color = "pink", linetype = "dashed") +
+   geom_line(size = .75, colour = "orange") +
+   geom_point_interactive(aes(tooltip = tooltip, data_id = feature_name), color = "orange", size = 3.5) +
+   scale_x_discrete(guide = guide_axis(n.dodge = 2), 
+                    label = label_wrap(10)) +
+   scale_y_continuous(limits = c(0,100), breaks = seq(25, 100, 25)) +
+   labs(title = "Figura 3. Percentual Acumulado de Operações por SE", x = NULL, y = NULL) +
+   tema +
+   theme(axis.text.x = element_text(size = 10),
+         panel.grid.major.y = element_blank())} %>% 
+girafe(ggobj = .)
+```
+:::
+:::
+
+<br> 
+
+Acima, houve uma breve análise das variáveis categóricas. Na sequência, cabe visualizar a distribuição das variáveis numéricas, principalmente com intuito de identificar possíveis *outliers*. Na figura abaixo, com exceção de score de crédito (pontos), prazo (meses), atraso corrente (dias) e taxa (percentual), todas as outras variáveis possuem como unidade R$ mil.   
+
+```{r}
+#| label: fig-varcontdist
+#| fig-width: 12
+#| fig-height: 12
+
+  dados %>% 
+    select(-c(estado, setor, bad, loss, loss_qtl)) %>% 
+    mutate(across(matches('valor|faturamento|divida'), ~ .x / 1000)) %>% 
+    pivot_longer(cols = 2:length(.)) %>%
+    mutate(name = case_when(name == "atraso_corrente" ~ "Atraso Corrente",
+                            name == "divida_total_pj" ~ "Dívida Total",
+                            name == "faturamento_informado" ~ "Faturamento Informado",
+                            name == "prazo" ~ "Prazo",
+                            name == "score" ~ "Score",
+                            name == "taxa" ~ "Taxa",
+                            name == "valor_contrato" ~ "Valor do Contrato",
+                            name == "valor_contrato_mais_juros" ~ "Valor do Contrato + Juros",
+                            name == "valor_em_aberto" ~ "Valor em Aberto",
+                            T ~ name)) %>% 
+  {ggplot(., aes(x = name, y = value)) +
+    geom_jitter(color = "lightgreen", size = 0.4, alpha = 0.9) +
+    geom_violin(fill = "transparent", color = "#a66885", size = 1) +
+    scale_y_continuous(labels = scales::label_number(big.mark = ".")) +
+    facet_wrap(~ name, scales = "free") +
+    labs(title = "Figura 4. Distribuição das Variáveis Contínuas",
+         x = "", y = "") +
+    tema +
+    theme(axis.text.x = element_blank(),
+          axis.line.x = element_blank(),
+          axis.line.y = element_blank(),
+          strip.background = element_blank(),
+          strip.text = element_text(size = 12, color = "white", face = "bold"))}
+```
+
+<br> 
+
+::: grid
+::: g-col-6
+Podemos perceber que **as instituições da amostra possuem um risco relativamente alto de inadimplência**, dado o acúmulo de scores de crédito abaixo de 500 pontos. O faturamento mensal informado mediano é de R\$ 60 mil, ao passo que a dívida total mediana é de R\$ 13 mil; cabe ressaltar que essas séries possuem alguns *outliers*, o que pode ser visto facilmente através dos poucos pontos afastados de suas medianas. As informações são suficientes para afirmar que **trata-se de uma base com alta presença de pequenas empresas** (faturamento anual informado mediano de R\$ 720 mil).  
+
+**O valor mediano dos contratos é de R\$ 16,6 mil** e, com juros, chega a R\$ 19,4 mil. As distribuições são bem semelhantes, como esperado, e ao mesmo tempo mostram que há presença significativa de observações afastadas do valor mediano, sendo necessário avaliação mais cuidadosa para classificá-las como *outliers*. **Os valores modais** (isto é, mais recorrentes) **para taxa de juros e prazo são 5,1% e 12,6 meses, respectivamente**. 
+
+Cerca de 75% das observações possuem valor aberto inferior a R$ 3 mil, sendo que **a maioria não possui débito pendente**. Além disso, **não há atraso corrente para a maioria das operações**; no entanto, quando ocorre, alcança tempo próximo de 1.200 dias (~3,3 anos).  
+:::
+
+::: g-col-6
+```{r}
+
+options(knitr.table.format = "html")
+
+  map(dados %>%
+          mutate(across(matches('valor|faturamento|divida'), ~ .x / 1000)) %>%
+          select(where(is.numeric), -c(id, bad, loss, loss_qtl, loss_4qtl, loss_lr, new_score)), 
+        ~ quantile(.x)) %>% 
+  bind_rows(.id = "Variável") %>% 
+  mutate(across(where(is.numeric), ~ format(.x, digits = 2)),
+         `Variável` = case_when(`Variável` == "atraso_corrente" ~ "Atraso Corrente",
+                          `Variável` == "divida_total_pj" ~ "Dívida Total",
+                          `Variável` == "faturamento_informado" ~ "Faturamento Informado",
+                          `Variável` == "prazo" ~ "Prazo",
+                          `Variável` == "score" ~ "Score",
+                          `Variável` == "taxa" ~ "Taxa",
+                          `Variável` == "valor_contrato" ~ "Valor do Contrato",
+                          `Variável` == "valor_contrato_mais_juros" ~ "Valor do Contrato + Juros",
+                          `Variável` == "valor_em_aberto" ~ "Valor em Aberto",
+                          T ~ `Variável`)) %>% 
+    kable(table.attr = 'data-quarto-disable-processing="true"', 
+          caption = "<span style='font-size:20; color: white'>Tabela 1. Quartis das Variáveis Númericas</span>",
+          align = "c") %>% 
+    kable_styling(full_width = F, bootstrap_options = c("striped", "hover"), stripe_color = "lightgreen", html_font = "Montserrat") 
+
+```
+:::
+:::
+
+
+Por fim, é interessante calcular o ticket, prazo e taxa de juros média das observações. O primeiro é simplesmente o valor médio dos contratos, ao passo que os dois últimos correspondem a média ponderada do prazo e taxa de juros pelo valor dos contratos.
+
+```{r}
+
+q1 %>% 
+  mutate(across(where(is.numeric), ~ format(.x, digits = 3))) %>% 
+  kable(table.attr = 'data-quarto-disable-processing="true"', 
+        caption = "<span style='font-size:20; color: white'>Tabela 2. Estatísticas de Média</span>",
+        align = "c") %>% 
+  kable_styling(full_width = F, bootstrap_options = c("striped", "hover"), stripe_color = "lightgreen", html_font = "Montserrat") 
+
+```
+
+O ticket médio é de R\$ 24 mil, acima do valor mediano. Assim sendo, pode-se dizer que alguns empréstimos detêm valor consideravelmente acima do encontrado para a maioria restante; visualmente, podemos perceber esse detalhe pela parte superior bimodal da distribuição do valor de contrato. Por outro lado, prazo médio e taxa média estão abaixo de seus respectivos valores medianos. Dada a forma de cálculo (média ponderada), pode-se dizer que esse fenônemo ocorre pois os empréstimos de maior volume estão associados à taxas e prazos menores. 
+
+## Características de Bons e Maus Pagadores
+
+::: {.callout-important icon=false}
+## Bons e Maus Pagadores
+
+*"Definimos determinado empréstimo como Bad quando este ultrapassa 180 dias de atraso"*
+:::
+
+
+
+::: {.grid}
+::: {.g-col-8}
+
+::: {.panel-tabset .nav-pills}
+
+## Unidade Federativas
+
+```{r}
+#| fig-width: 8.5
+ 
+bmp_plot(dados, 'estado', 
+         plot_title = "Figura 5. Bons e Maus Pagadores: Percentual por UF",
+         plot_subtitle = "Ordenação por número total de operações. Em azul (vermelho), bons (maus) pagadores.")
+
+```
+
+
+## Setor Econômico
+
+```{r}
+#| fig-width: 8.5
+
+bmp_plot(dados, 'setor', 
+         plot_title = "Figura 6. Bons e Maus Pagadores: Percentual por ",
+         plot_subtitle = "Ordenação por número total de operações. Em azul (vermelho), bons (maus) pagadores.")
+
+```
+
+
+## Variáveis Contínuas
+
+```{r}
+#| fig-width: 12
+#| fig-height: 7
+
+    dados %>% 
+      select(-c(estado, setor, loss, loss_qtl)) %>% 
+      mutate(across(matches('valor|faturamento|divida'), ~ .x / 1000)) %>% 
+      pivot_longer(cols = !matches('^id$|bad')) %>%
+      mutate(bad = as.character(bad),
+             name = case_when(name == "atraso_corrente" ~ "Atraso Corrente",
+                              name == "divida_total_pj" ~ "Dívida Total",
+                              name == "faturamento_informado" ~ "Faturamento Informado",
+                              name == "prazo" ~ "Prazo",
+                              name == "score" ~ "Score",
+                              name == "taxa" ~ "Taxa",
+                              name == "valor_contrato" ~ "Valor do Contrato",
+                              name == "valor_contrato_mais_juros" ~ "Valor do Contrato + Juros",
+                              name == "valor_em_aberto" ~ "Valor em Aberto",
+                              T ~ name)) %>% 
+      {ggplot(., aes(x = bad, y = value, group = bad)) +
+          geom_jitter_interactive(color = "lightgreen", size = 0.4, alpha = 0.9) +
+          geom_violin_interactive(aes(color = bad), fill = "transparent", size = 1, show.legend = FALSE) +
+          scale_color_manual(values = c('#447597', '#f77b72')) +
+          scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+          facet_wrap(~ name, scales = "free") +
+          labs(title = "Figura 7. Bons e Maus Pagadores: Distribuição das Variáveis Contínuas",
+               subtitle = "Em azul (vermelho), bons (maus) pagadores",
+               x = "", y = "") +
+          tema +
+          theme(plot.title = element_text(margin = margin(0,0,5,0)),
+                plot.subtitle = element_text(size = 10, color = "white"),
+                axis.text.x = element_blank(),
+                axis.text.y = element_text(size = 12),
+                axis.line.x = element_blank(),
+                axis.line.y = element_blank(),
+                strip.background = element_blank(),
+                strip.text = element_text(size = 12, color = "white", face = "bold"))} %>% 
+      
+      girafe(ggobj = .)
+
+```
+
+:::
+
+:::
+
+::: {.g-col-4}
+
+<br>
+<br> 
+<br>
+
+Dos 1.922 empréstimos, 501 (26%) são considerados 'Bad', isto é, possuem 180 dias ou mais de atraso corrente. Como bons e maus empréstimos se distribuem por UF e SE? 
+
+:::
+
+:::
+
+- As mesmas oito UFs representam a maior parcela de empréstimos, tanto para bons quanto para maus pagadores. Observe, no entanto, que há alterações em relação ao ranqueamento geral, principalmente para maus pagadores. Por exemplo, Minas Gerais passa a ter uma frequência relativa de maus pagadores superior a sua participação no total.   
+
+- O recorte por SE apresenta história semelhante em relação ao ranqueamento. Importante notar que Varejo e Serviços de Alojamento/Alimentação correspondem por metade dos empréstimos com maus pagadores.
+
+Para as variáveis contínuas, nota-se que as distribuições são semelhantes, exceto para o atraso corrente (sendo estadiferença esperada, já que é o que justamente define bons e maus pagadores).
+
+
+## Loss
+
+::: {.callout-important icon=false}
+## Loss Given Default (LGD)
+
+*"Apesar de todos os clientes mal pagadores receberem a mesma marcação (Bad = 1), o impacto financeiro varia bastante, pois um empréstimo que para de ser pago na 3ª parcela gera um impacto financeiro muito maior do que um que deixa de ser pago na 8ª parcela, por exemplo. Logo, o conceito de Loss que usamos é"*
+
+$$
+Loss = \frac{VA}{VP+J}
+$$
+Em que 
+
+$VA = \text{Valor em Aberto}$
+
+$VP+J = \text{Valor do Principal + Juros}$
+:::
+
+Pela definição, note que um cliente pode ser considerado 'bom pagador' (<180 dias de atraso corrente) e ainda sim possuir $Loss$ > 0. No entanto, isto não ocorre na amostra, ou seja, somente os 'mau pagadores' que possuem valor em aberto. 
+
+Utilizando o conceito de *Loss*, podemos ter uma melhor noção das características dos empréstimos que, além de estarem na condição de inadimplência, causam maior dano à instituição. Com esse intuito, a análise subsequente será feita com base no último quartil da distribuição dos valores de Loss. Esses seriam os 'piores clientes' (os 25% que mais devem por um período superior a 180 dias). Ao todo, temos 127 operações desse tipo.
+
+
+::: {.grid}
+::: {.g-col-8}
+
+::: {.panel-tabset .nav-pills}
+
+## Unidade Federativas
+
+```{r}
+#| fig-width: 8.5
+
+loss_qtl_plot(dados, 'estado', plot_title = "Figura 8. Último Quartil de Loss por UF")
+```
+
+
+## Setor Econômico
+
+```{r}
+#| fig-width: 8.5
+ 
+loss_qtl_plot(dados, 'setor', plot_title = "Figura 9. Último Quartil de Loss por SE")
+```
+
+
+## Variáveis Contínuas 
+
+```{r}
+#| fig-width: 12
+#| fig-height: 7
+
+    dados %>%
+      filter(loss_qtl == 4) %>% 
+      select(-c(estado, setor, loss, loss_qtl)) %>% 
+      mutate(across(matches('valor|faturamento|divida'), ~ .x / 1000)) %>% 
+      pivot_longer(cols = !matches('^id$|bad')) %>%
+      mutate(bad = as.character(bad),
+             name = case_when(name == "atraso_corrente" ~ "Atraso Corrente",
+                              name == "divida_total_pj" ~ "Dívida Total",
+                              name == "faturamento_informado" ~ "Faturamento Informado",
+                              name == "prazo" ~ "Prazo",
+                              name == "score" ~ "Score",
+                              name == "taxa" ~ "Taxa",
+                              name == "valor_contrato" ~ "Valor do Contrato",
+                              name == "valor_contrato_mais_juros" ~ "Valor do Contrato + Juros",
+                              name == "valor_em_aberto" ~ "Valor em Aberto",
+                              T ~ name)) %>% 
+      {ggplot(., aes(x = bad, y = value, group = bad)) +
+          geom_jitter_interactive(color = "lightgreen", size = 0.4, alpha = 0.9) +
+          geom_violin_interactive(aes(color = bad), fill = "transparent", size = 1, show.legend = FALSE) +
+          scale_color_manual(values = c('#447597', '#f77b72')) +
+          scale_y_continuous(labels = scales::label_number(big.mark = ".", decimal.mark = ",")) +
+          facet_wrap(~ name, scales = "free") +
+          labs(title = "Figura 10. Distribuição das Variáveis Contínuas, 4º Quartil de Loss",
+               x = "", y = "") +
+          tema +
+          theme(plot.title = element_text(margin = margin(0,0,15,0)),
+                plot.subtitle = element_text(size = 10, color = "white"),
+                axis.text.x = element_blank(),
+                axis.text.y = element_text(size = 12),
+                axis.line.x = element_blank(),
+                axis.line.y = element_blank(),
+                strip.background = element_blank(),
+                strip.text = element_text(size = 12, color = "white", face = "bold"))} %>% 
+      
+      girafe(ggobj = .)
+
+```
+
+:::
+
+:::
+
+::: {.g-col-4}
+
+<br>
+<br> 
+<br>
+
+- A distribuição por UF segue o mesmo padrão geral e para bons/maus pagadores. Os estados do Rio de Janeiro, São Paulo e Minas Gerais formam o *top 3* de valor em aberto como percentual do valor total a receber. Já em relação aos SEs, Varejo e Serviços de Alojamento/Alimentação novamente se destacam; agora, no entanto, o *top 3* possui também Indústria de Construção. 
+
+:::
+
+:::
+
+A distribuição de variáveis contínuas é mais interessante. É possível notar, por exemplo, que maiores valores em aberto estão relacionados com um maior número de dias correntes em atraso. As outras variáveis contínuas possuem distribuição semelhante à dos empréstimos marcados como *'Bad'*.
+
+
+## Score de Crédito
+
+Existem algumas formas de se criar um indicador. Uma delas, simples, seria definir um método de agregação e atribuir estrutura de ponderação maior para características que se julgam mais determinantes no resultado de interesse; o IDH é um exemplo.
+
+Outra, mais complexa, parte do uso de modelos estatísticos de classificação, como Regressão Logística, por exemplo. É possível determinar, a partir da amostra, como cada característica se relaciona com a probabilidade de dada operação possuir valor em aberto (Loss > 0). Na figura abaixo, a relação novo score *vs* Loss, considerando que o primeiro é a estimativa de um modelo simples da existência de Loss sendo explicada por efeitos fixos de UF e SE.
+
+```{r}
+#| fig-width: 12
+#| fig-height: 5
+
+    dados %>% 
+    mutate(tooltip = glue('Novo Score: {format(new_score, digits = 4)} \n Loss: {loss}')) %>% 
+    {ggplot(., aes(loss, new_score)) +
+    geom_point_interactive(aes(tooltip = tooltip, data_id = new_score), color = "orange", alpha = .4) +
+    labs(title = "Figura 11. Loss vs Novo Score", x = "Loss", y = "Novo Score") +
+    tema} %>% 
+    girafe(ggobj = .)
+```
+
+Observe que o modelo não é tão poderoso. No entanto, para esse tipo de modelo de classificação talvez seja a melhor especificação com o conjunto de informações disponíveis, dada a semelhança nas distribuições das demais variáveis contínuas.  
